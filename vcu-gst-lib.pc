@@ -1,0 +1,11 @@
+prefix=/usr
+exec_prefix=${prefix}
+includedir=${prefix}/include
+libdir=${exec_prefix}/lib
+
+Name: vcu-gst-lib
+Description: VCU GStreamer library
+Version: 1.0
+Cflags: -I${includedir}/
+Libs: -L${libdir} -lvcu_gst
+Requires: vcu-video-lib gstreamer-1.0 gstreamer-plugins-base-1.0
