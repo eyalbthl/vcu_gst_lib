@@ -917,11 +917,11 @@ link_elements (vgst_ip_params *ip_param, vgst_playback *play_ptr, gint sink_type
             }
           } else { /* NORMAL_LATENCY == enc_param->latency_mode */
             if (!gst_element_link_many (play_ptr->ip_src, play_ptr->srccapsfilter, play_ptr->videoenc, play_ptr->enccapsfilter, \
-                                        play_ptr->enc_queue, play_ptr->mux, play_ptr->rtppay, play_ptr->videosink, NULL)) {
-              GST_ERROR ("Error linking for ip_src --> srccapsfilter --> videoenc --> enccapsfilter --> enc_queue --> mpegtsmux --> rtppay --> videosink");
+                                        play_ptr->videoparser, play_ptr->enc_queue, play_ptr->mux, play_ptr->rtppay, play_ptr->videosink, NULL)) {
+              GST_ERROR ("Error linking for ip_src --> srccapsfilter --> videoenc --> enccapsfilter --> videoparse --> enc_queue --> mpegtsmux --> rtppay --> videosink");
               return VGST_ERROR_PIPELINE_LINKING_FAIL;
             } else {
-              GST_DEBUG ("Linked for ip_src --> srccapsfilter --> videoenc --> enccapsfilter --> enc_queue --> mpegtsmux --> rtppay --> videosink successfully");
+              GST_DEBUG ("Linked for ip_src --> srccapsfilter --> videoenc --> enccapsfilter --> videoparse --> enc_queue --> mpegtsmux --> rtppay --> videosink successfully");
             }
           }
         }
@@ -965,11 +965,11 @@ link_elements (vgst_ip_params *ip_param, vgst_playback *play_ptr, gint sink_type
         } else {
           if (strstr(uri, TS_MUX_TYPE) != NULL) {
             if (!gst_element_link_many (play_ptr->ip_src, play_ptr->srccapsfilter, play_ptr->videoenc, play_ptr->enc_queue, play_ptr->enccapsfilter,
-                                        play_ptr->mux, play_ptr->videosink, NULL)) {
-              GST_ERROR ("Error linking for ip_src --> capsfilter --> videoenc --> queue --> capsfilter --> mux --> videosink");
+                                        play_ptr->videoparser, play_ptr->mux, play_ptr->videosink, NULL)) {
+              GST_ERROR ("Error linking for ip_src --> capsfilter --> videoenc --> queue --> capsfilter --> videoparser --> mux --> videosink");
               return VGST_ERROR_PIPELINE_LINKING_FAIL;
             } else {
-              GST_DEBUG ("Linked for ip_src --> capsfilter --> videoenc --> queue --> capsfilter --> mux --> videosink successfully");
+              GST_DEBUG ("Linked for ip_src --> capsfilter --> videoenc --> queue --> capsfilter --> videoparser --> mux --> videosink successfully");
             }
           } else {
             if (!gst_element_link_many (play_ptr->ip_src, play_ptr->srccapsfilter, play_ptr->videoenc, play_ptr->enc_queue, play_ptr->enccapsfilter,
