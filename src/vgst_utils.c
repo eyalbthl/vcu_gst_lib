@@ -258,9 +258,6 @@ on_pad_added (GstElement *element,
         if (structure != NULL) {
           gst_structure_get_int(structure, "width", &width);
           gst_structure_get_int(structure, "height", &height);
-          if ((width == MAX_WIDTH/2) && (height == MAX_HEIGHT/2)) {
-            g_object_set (G_OBJECT (play_ptr->videosink), "hold-extra-sample", TRUE, NULL);
-          }
         }
       }
       if (app.ip_params[index].accelerator) {
