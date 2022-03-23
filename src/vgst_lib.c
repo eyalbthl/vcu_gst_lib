@@ -135,9 +135,24 @@ vgst_config_options (vgst_enc_params *enc_param, vgst_ip_params *ip_param, vgst_
         return VGST_ERROR_SRC_TYPE_NOT_SUPPORTED;
       }
       if (ip_param[i].format != NV12 && ip_param[i].format != NV16 &&
-          ip_param[i].format != XV15 && ip_param[i].format != XV20 ) {
+          ip_param[i].format != XV15 && ip_param[i].format != XV20 &&
+          ip_param[i].format != YU24 && ip_param[i].format != X403) {
         GST_ERROR ("Input format is not supported");
         return VGST_ERROR_FORMAT_NOT_SUPPORTED;
+      }
+      if ((YU24 == ip_param[i].format) || (X403 == ip_param[i].format)) {
+        if ((LIVE_SRC == ip_param[i].src_type) && \
+            (DISPLAY  == cmn_param->sink_type) && \
+            (FALSE    == ip_param[i].raw)) {
+          GST_ERROR ("Serial use-case is not supported with YUV444 format");
+          return VGST_ERROR_INPUT_OPTIONS_INVALID;
+        }
+        if ((MAX_WIDTH  == ip_param[i].width)  &&
+            (MAX_HEIGHT == ip_param[i].height) &&
+            (MAX_SUPPORTED_FRAME_RATE == cmn_param->frame_rate)) {
+          GST_ERROR ("4kp60 use-case is not supported with YUV444 format");
+          return VGST_ERROR_INPUT_OPTIONS_INVALID;
+        }
       }
       if (FILE_SRC == ip_param[i].src_type && (!ip_param[i].uri || (stat(ip_param[i].uri +strlen("file:"), &file_stat) < 0))) {
         GST_ERROR ("Input file does not exist");
@@ -263,7 +278,7 @@ vgst_config_options (vgst_enc_params *enc_param, vgst_ip_params *ip_param, vgst_
           return VGST_ERROR_SLICE_RANGE_MISMATCH;
         }
         if ((enc_param[i].profile != HIGH_PROFILE) && (AVC == enc_param[i].enc_type) && (ip_param[i].format != NV12)) {
-          GST_ERROR ("Only high profile supported for H264 and NV16/XV15/XV20 format");
+          GST_ERROR ("Only high profile supported for H264 and NV16/XV15/XV20/YU24/X403 format");
           return VGST_ERROR_PROFILE_FORMAT_NOT_SUPPORTED;
         }
         if ((enc_param[i].profile != BASELINE_PROFILE && enc_param[i].profile != MAIN_PROFILE && enc_param[i].profile != HIGH_PROFILE) &&

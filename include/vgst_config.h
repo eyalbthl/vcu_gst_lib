@@ -70,6 +70,8 @@ typedef enum {
 #define MAX_WIDTH                    3840
 #define DCI_MAX_WIDTH                4096
 #define MAX_HEIGHT                   2160
+#define RES_1080P_WIDTH              1920
+#define RES_1080P_HEIGHT             1080
 #define MAX_SUPPORTED_FRAME_RATE     60
 #define MAX_FRAME_RATE_DENOM         1
 #define MIN_RELATIVE_QP              -32
