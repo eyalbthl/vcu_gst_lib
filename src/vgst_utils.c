@@ -1,5 +1,5 @@
 /*********************************************************************
- * Copyright (C) 2017-2021 Xilinx, Inc.
+ * Copyright (C) 2017-2022 Xilinx, Inc.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -258,9 +258,6 @@ on_pad_added (GstElement *element,
         if (structure != NULL) {
           gst_structure_get_int(structure, "width", &width);
           gst_structure_get_int(structure, "height", &height);
-          if ((width == MAX_WIDTH/2) && (height == MAX_HEIGHT/2)) {
-            g_object_set (G_OBJECT (play_ptr->videosink), "hold-extra-sample", TRUE, NULL);
-          }
         }
       }
       if (app.ip_params[index].accelerator) {

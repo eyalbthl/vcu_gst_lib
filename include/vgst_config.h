@@ -1,5 +1,5 @@
 /*********************************************************************
- * Copyright (C) 2017-2021 Xilinx, Inc.
+ * Copyright (C) 2017-2022 Xilinx, Inc.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -70,6 +70,8 @@ typedef enum {
 #define MAX_WIDTH                    3840
 #define DCI_MAX_WIDTH                4096
 #define MAX_HEIGHT                   2160
+#define RES_1080P_WIDTH              1920
+#define RES_1080P_HEIGHT             1080
 #define MAX_SUPPORTED_FRAME_RATE     60
 #define MAX_FRAME_RATE_DENOM         1
 #define MIN_RELATIVE_QP              -32

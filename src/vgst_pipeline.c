@@ -1,5 +1,5 @@
 /*********************************************************************
- * Copyright (C) 2017-2021 Xilinx, Inc.
+ * Copyright (C) 2017-2022 Xilinx, Inc.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -321,6 +321,10 @@ set_property (vgst_application *app, gint index) {
         GST_DEBUG ("Setting internal-entropy-buffers to [%d]", dec_buffer_cnt);
         g_object_set (G_OBJECT (play_ptr->videodec),  "internal-entropy-buffers",  dec_buffer_cnt,      NULL);
 
+        if (YU24 == ip_param->format || X403 == ip_param->format) {
+          g_object_set (G_OBJECT (play_ptr->videoenc),  "y444-to-gray",      TRUE,                      NULL);
+        }
+
         gchar * profile;
         if (ip_param->format == XV20) {
           profile = enc_param->enc_type == HEVC ? "main-422-10" : "high-4:2:2";
@@ -328,6 +332,10 @@ set_property (vgst_application *app, gint index) {
           profile = enc_param->enc_type == HEVC ? "main-10" : "high-10";
         } else if (ip_param->format == NV16) {
           profile = enc_param->enc_type == HEVC ? "main-422" : "high-4:2:2";
+        } else if (ip_param->format == YU24) {
+          profile = enc_param->enc_type == HEVC ? "monochrome" : "high";
+        } else if (ip_param->format == X403) {
+          profile = enc_param->enc_type == HEVC ? "monochrome-10" : "high-10";
         } else {
           profile = enc_param->profile == BASELINE_PROFILE ? "constrained-baseline" :
                     enc_param->profile == MAIN_PROFILE ? "main" : "high";
@@ -370,8 +378,12 @@ set_property (vgst_application *app, gint index) {
       }
     }
     gchar * format;
-    format = ip_param->format == XV20 ? "NV16_10LE32" : ip_param->format == XV15 ?
-                                 "NV12_10LE32" : ip_param->format == NV16 ? "NV16" : "NV12";
+    format = ip_param->format == XV20 ? "NV16_10LE32" :
+             ip_param->format == XV15 ? "NV12_10LE32" :
+             ip_param->format == NV16 ? "NV16" :
+             ip_param->format == YU24 ? "Y444" :
+             ip_param->format == X403 ? "Y444_10LE32" :
+             "NV12";
     srcCaps  = gst_caps_new_simple ("video/x-raw",
                                     "width",     G_TYPE_INT,        ip_param->width,
                                     "height",    G_TYPE_INT,        ip_param->height,
@@ -458,10 +470,8 @@ set_property (vgst_application *app, gint index) {
       } else if (cmn_param->driver_type == HDMI_Tx) {
         g_object_set (G_OBJECT (play_ptr->videosink), "bus-id", cmn_param->bus_id, NULL);
         g_object_set (G_OBJECT (play_ptr->videosink), "plane-id",              cmn_param->plane_id, NULL);
-        g_object_set (G_OBJECT (play_ptr->videosink), "hold-extra-sample", TRUE, NULL);
       } else if (cmn_param->driver_type == SDI_Tx) {
         g_object_set (G_OBJECT (play_ptr->videosink), "driver-name", SDI_TX_DRIVER_NAME, NULL);
-        g_object_set (G_OBJECT (play_ptr->videosink), "hold-extra-sample", TRUE, NULL);
       }
       if (((llp2_design && ip_param->enable_llp2) || (SUB_FRAME_LATENCY == enc_param->latency_mode)) && \
             cmn_param->driver_type != DP) {
@@ -474,6 +484,14 @@ set_property (vgst_application *app, gint index) {
         }
       }
       g_object_set (G_OBJECT (play_ptr->videosink), "show-preroll-frame", FALSE, NULL);
+      if ((FILE_SRC == ip_param->src_type || STREAMING_SRC == ip_param->src_type) &&
+          (YU24     == ip_param->format   || X403          == ip_param->format)) {
+        g_object_set (G_OBJECT (play_ptr->videosink),    "gray-to-y444",       TRUE,                NULL);
+      }
+      if((RES_1080P_WIDTH  == ip_param->width) && (RES_1080P_HEIGHT == ip_param->height) &&
+         (DP               == cmn_param->driver_type)) {
+        g_object_set (G_OBJECT (play_ptr->videosink),    "fullscreen-overlay", TRUE,                NULL);
+      }
       g_object_set (G_OBJECT (play_ptr->fpsdisplaysink), "video-sink",         play_ptr->videosink, NULL);
       g_signal_connect (play_ptr->fpsdisplaysink,        "fps-measurements",   G_CALLBACK (on_fps_measurement), &play_ptr->fps_num[0]);
       cmn_param->plane_id++;
