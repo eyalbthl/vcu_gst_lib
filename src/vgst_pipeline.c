@@ -470,8 +470,10 @@ set_property (vgst_application *app, gint index) {
       } else if (cmn_param->driver_type == HDMI_Tx) {
         g_object_set (G_OBJECT (play_ptr->videosink), "bus-id", cmn_param->bus_id, NULL);
         g_object_set (G_OBJECT (play_ptr->videosink), "plane-id",              cmn_param->plane_id, NULL);
+        g_object_set (G_OBJECT (play_ptr->videosink), "hold-extra-sample", TRUE, NULL);
       } else if (cmn_param->driver_type == SDI_Tx) {
         g_object_set (G_OBJECT (play_ptr->videosink), "driver-name", SDI_TX_DRIVER_NAME, NULL);
+        g_object_set (G_OBJECT (play_ptr->videosink), "hold-extra-sample", TRUE, NULL);
       }
       if (((llp2_design && ip_param->enable_llp2) || (SUB_FRAME_LATENCY == enc_param->latency_mode)) && \
             cmn_param->driver_type != DP) {
