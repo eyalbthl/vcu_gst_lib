@@ -497,7 +497,7 @@ set_property (vgst_application *app, gint index) {
       }
       g_object_set (G_OBJECT (play_ptr->fpsdisplaysink), "video-sink",         play_ptr->videosink, NULL);
       g_signal_connect (play_ptr->fpsdisplaysink,        "fps-measurements",   G_CALLBACK (on_fps_measurement), &play_ptr->fps_num[0]);
-      cmn_param->plane_id++;
+      cmn_param->plane_id+=2;
 
     } else if (cmn_param->sink_type == STREAM) {
       g_object_set (G_OBJECT (play_ptr->mux),       "alignment",    PKT_NUMBER_PER_BUFFER, NULL);
