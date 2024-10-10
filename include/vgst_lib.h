@@ -174,37 +174,37 @@ typedef enum {
 gint vgst_init(void);
 
 /* This API is to initialize the options to initiate the pipeline */
-gint vgst_config_options (vgst_enc_params *enc_param, vgst_ip_params *ip_param, vgst_op_params *op_param, vgst_cmn_params *cmn_param, vgst_aud_params *aud_param);
+gint vgst_config_options (vgst_enc_params *enc_param, vgst_ip_params *ip_param, vgst_op_params *op_param, vgst_cmn_params *cmn_param, vgst_aud_params *aud_param, unsigned int channel);
 
 /* This API is to start the pipeline */
-gint vgst_start_pipeline (void);
+gint vgst_start_pipeline (unsigned int channel);
 
 /* This API is interface to stop the single/multi-stream pipeline */
-gint vgst_stop_pipeline (void);
+gint vgst_stop_pipeline (unsigned int channel);
 
 /* This API is to convert error number to string */
-const gchar * vgst_error_to_string (VGST_ERROR_LOG error_code, gint index);
+const gchar * vgst_error_to_string (VGST_ERROR_LOG error_code, gint index, unsigned int channel);
 
 /* This API is to get fps of the pipeline */
-void vgst_get_fps (guint index, guint *fps);
+void vgst_get_fps (guint index, guint *fps, unsigned int channel);
 
 /* This API is to get bitrate for file/stream-in playback */
-guint vgst_get_bitrate (int index);
+guint vgst_get_bitrate (int index, unsigned int channel);
 
 /* This API is to get video type for file/stream-in playback */
-guint vgst_get_video_type (int index);
+guint vgst_get_video_type (int index, unsigned int channel);
 
 /* This API is to poll events */
-gint vgst_poll_event (int *arg, int index);
+gint vgst_poll_event (int *arg, int index, unsigned int channel);
 
 /* This API is to un-initialize the library */
 gint vgst_uninit(void);
 
 /* This API is to get current position of the pipeline */
-void vgst_get_position (guint index, gint64 *pos);
+void vgst_get_position (guint index, gint64 *pos, unsigned int channel);
 
 /* This API is to get duration of the file */
-void vgst_get_duration (guint index, gint64 *duration);
+void vgst_get_duration (guint index, gint64 *duration,unsigned int channel);
 
 #ifdef __cplusplus
 }

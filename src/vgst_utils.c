@@ -23,24 +23,31 @@
 #include "vgst_split_pipeline.h"
 #include <math.h>
 
-vgst_application app;
+#define MAX_CHANNELS 2
+vgst_application app[MAX_CHANNELS];
 
 GST_DEBUG_CATEGORY_EXTERN (vgst_lib);
 #define GST_CAT_DEFAULT vgst_lib
 
 void
 init_struct_params (vgst_enc_params *enc_param, vgst_ip_params *ip_param, vgst_op_params *op_param,
-        vgst_cmn_params *cmn_param, vgst_aud_params *aud_param) {
-    memset (&app, 0, sizeof(vgst_application));
-    app.enc_params = enc_param;
-    app.ip_params  = ip_param;
-    app.op_params  = op_param;
-    app.cmn_params = cmn_param;
-    app.aud_params = aud_param;
+        vgst_cmn_params *cmn_param, vgst_aud_params *aud_param, guint channel) {
+	//TODO: add protections
+	vgst_application* pVgst_App = &app[channel];
+
+    memset (pVgst_App, 0, sizeof(vgst_application));
+    pVgst_App->enc_params = enc_param;
+    pVgst_App->ip_params  = ip_param;
+    pVgst_App->op_params  = op_param;
+    pVgst_App->cmn_params = cmn_param;
+    pVgst_App->aud_params = aud_param;
+    pVgst_App->channel = channel;
 }
 
 const gchar *
-error_to_string (VGST_ERROR_LOG error_code, gint index) {
+error_to_string (VGST_ERROR_LOG error_code, gint index, guint channel) {
+	vgst_application* pVgst_App = &app[channel];
+
     switch (error_code) {
     case VGST_SUCCESS :
       return "Success";
@@ -75,8 +82,8 @@ error_to_string (VGST_ERROR_LOG error_code, gint index) {
     case VGST_ERROR_SET_ENC_BUF_ENV_FAILED :
       return "Encoder buffer env setting failed";
     case VGST_ERROR_RUN_TIME_PIPELINE_FAILED :
-      if (app.playback[index].err_msg)
-        return app.playback[index].err_msg;
+      if (pVgst_App->playback[index].err_msg)
+        return pVgst_App->playback[index].err_msg;
       break;
     case VGST_ERROR_MULTI_STREAM_FAIL:
       return "Multi stream on DP or SDI not supported";
@@ -152,6 +159,9 @@ error_to_string (VGST_ERROR_LOG error_code, gint index) {
       return "Unknown error";
     case VGST_ERROR_HLG_NOT_SUPPORTED :
       return "HLG is only supported with (non-llp2) SDI design";
+     // ODELYA - this case wasn't handled
+    case VGST_ERROR_AUDIO_DEVICE_ID_NOT_FOUND :
+    	return "Audio device ID is not found";
     }
 
     vlib_error error = (vlib_error) error_code;
@@ -188,6 +198,8 @@ error_to_string (VGST_ERROR_LOG error_code, gint index) {
         return vlib_error_name(VLIB_ERROR_HDMIRX_NOT_AVAILABLE);
       case VLIB_ERROR_TPG_1_NOT_AVAILABLE :
         return vlib_error_name(VLIB_ERROR_TPG_1_NOT_AVAILABLE);
+      case VLIB_ERROR_TPG_2_NOT_AVAILABLE :
+        return vlib_error_name(VLIB_ERROR_TPG_2_NOT_AVAILABLE);
       case VLIB_ERROR_SDI_NOT_AVAILABLE :
         return vlib_error_name(VLIB_ERROR_SDI_NOT_AVAILABLE);
       case VLIB_ERROR_SCD_NOT_AVAILABLE :
@@ -214,13 +226,14 @@ void
 on_deep_element_added (GstBin *bin,
                        GstBin *sub_bin,
                        GstElement *element,
-                       gpointer user_data) {
+                       gpointer user_data, guint channel) {
+	vgst_application* pVgst_App = &app[channel];
     guint *enable_roi = (guint *) user_data;
     GstElementFactory *factory = gst_element_get_factory (element);
     const gchar *klass = gst_element_factory_get_klass(factory);
     if (!g_strcmp0 (klass, "Codec/Decoder/Video/Hardware")) {
       if (g_object_class_find_property(G_OBJECT_GET_CLASS(element), "internal-entropy-buffers")) {
-        guint dec_buffer_cnt = ceil((float)DEFAULT_DEC_BUFFER_CNT/app.cmn_params->num_src);
+        guint dec_buffer_cnt = ceil((float)DEFAULT_DEC_BUFFER_CNT/pVgst_App->cmn_params->num_src);
         dec_buffer_cnt = dec_buffer_cnt < MIN_DEC_BUFFER_CNT ? MIN_DEC_BUFFER_CNT : dec_buffer_cnt;
         GST_DEBUG ("Setting internal-entropy-buffers to [%d]", dec_buffer_cnt);
         g_object_set (G_OBJECT(element), "internal-entropy-buffers", dec_buffer_cnt, NULL);
@@ -235,25 +248,26 @@ on_deep_element_added (GstBin *bin,
 void
 on_pad_added (GstElement *element,
               GstPad     *pad,
-              gpointer   data) {
+              gpointer   data, guint channel) {
     gchar *str;
     guint i, index =0;
     vgst_playback *play_ptr = (vgst_playback *)data;
     GstCaps *caps = gst_pad_get_current_caps (pad);
     GstStructure *structure;
     gint width, height;
+    vgst_application* pVgst_App = &app[channel];
     str = gst_caps_to_string(caps);
 
-    for (i = 0; i< app.cmn_params->num_src; i++) {
-      if (&app.playback[i] == play_ptr) {
+    for (i = 0; i< pVgst_App->cmn_params->num_src; i++) {
+      if (&pVgst_App->playback[i] == play_ptr) {
         index = i;
         break;
       }
     }
-    GST_DEBUG ("Caps value is %s::%d::%d", str, app.aud_params[index].enable_audio, app.cmn_params->driver_type);
+    GST_DEBUG ("Caps value is %s::%d::%d", str, pVgst_App->aud_params[index].enable_audio, pVgst_App->cmn_params->driver_type);
     if (g_str_has_prefix (str, "video/")) {
-      if (app.cmn_params->sink_type == DISPLAY &&
-         (app.cmn_params->driver_type == HDMI_Tx || app.cmn_params->driver_type == SDI_Tx)) {
+      if (pVgst_App->cmn_params->sink_type == DISPLAY &&
+         (pVgst_App->cmn_params->driver_type == HDMI_Tx || pVgst_App->cmn_params->driver_type == SDI_Tx)) {
         structure = gst_caps_get_structure(caps, 0);
         if (structure != NULL) {
           gst_structure_get_int(structure, "width", &width);
@@ -263,7 +277,7 @@ on_pad_added (GstElement *element,
           }
         }
       }
-      if (app.ip_params[index].accelerator) {
+      if (pVgst_App->ip_params[index].accelerator) {
         /* There is difference b/w raw data coming from v4l2src and VCU decoder.
            We are distinguishing it by flag raw.
         */
@@ -280,19 +294,19 @@ on_pad_added (GstElement *element,
           GST_DEBUG ("Linked for ip_src --> queue --> fpsdisplaysink successfully");
         }
       }
-    } else if (g_str_has_prefix (str, "audio/") && app.aud_params[index].enable_audio) {
+    } else if (g_str_has_prefix (str, "audio/") && pVgst_App->aud_params[index].enable_audio) {
       if (play_ptr->pipeline && play_ptr->alsasink) {
         gst_bin_add_many (GST_BIN(play_ptr->pipeline), play_ptr->alsasink, NULL);
         GST_DEBUG ("alsasink is added in the pipeline and syncing to patent state");
         gst_element_sync_state_with_parent (play_ptr->alsasink);
       }
-      if (DP == app.cmn_params->driver_type) {
+      if (DP == pVgst_App->cmn_params->driver_type) {
         if (!gst_element_link_many(play_ptr->ip_src, play_ptr->volume, play_ptr->audconvert, play_ptr->audresample, play_ptr->alsasink, NULL)) {
           GST_ERROR ("Error linking for ip_src --> volume --> audioconvert --> audioresample --> alsasink");
         } else {
           GST_DEBUG ("Linked for ip_src --> volume --> audioconvert --> audioresample --> alsasink successfully");
         }
-      } else if (HDMI_Tx == app.cmn_params->driver_type || SDI_Tx == app.cmn_params->driver_type) {
+      } else if (HDMI_Tx == pVgst_App->cmn_params->driver_type || SDI_Tx == pVgst_App->cmn_params->driver_type) {
         if (!gst_element_link_many(play_ptr->ip_src, play_ptr->volume, play_ptr->audconvert, play_ptr->audresample, play_ptr->audcapsfilter, play_ptr->alsasink, NULL)) {
           GST_ERROR ("Error linking for ip_src --> volume --> audioconvert --> audioresample --> audiocapsfilter --> alsasink");
         } else {
@@ -306,20 +320,22 @@ on_pad_added (GstElement *element,
 
 
 void
-vgst_print_params (guint index) {
-    vgst_ip_params *ip_param = &app.ip_params[index];
-    vgst_enc_params *enc_param = &app.enc_params[index];
-    vgst_cmn_params *cmn_param = app.cmn_params;
-    vgst_op_params *op_param = &app.op_params[index];
-    vgst_aud_params *aud_param =  &app.aud_params[index];
+vgst_print_params (guint index, guint channel) {
+	vgst_application* pVgst_App = &app[channel];
+    vgst_ip_params *ip_param = &pVgst_App->ip_params[index];
+    vgst_enc_params *enc_param = &pVgst_App->enc_params[index];
+    vgst_cmn_params *cmn_param = pVgst_App->cmn_params;
+    vgst_op_params *op_param = &pVgst_App->op_params[index];
+    vgst_aud_params *aud_param =  &pVgst_App->aud_params[index];
 
     GST_DEBUG ("Src type %d", ip_param->src_type);
-    GST_DEBUG ("Device type %d [1 =TPG, 2,4,8,16,32,64,128 =HDMI, 256,512,1024,2048 =CSI, 4096 =SDI]", ip_param->device_type);
+    GST_DEBUG ("Device type %d [TPGx2, HDMIx7, CSIx4, SDIx1, SCDx1]", ip_param->device_type);
     GST_DEBUG ("Format type %d", ip_param->format);
     if (ip_param->uri)
       GST_DEBUG ("Uri %s", ip_param->uri);
     GST_DEBUG ("Width %u", ip_param->width);
     GST_DEBUG ("Height %u", ip_param->height);
+    GST_DEBUG ("Frame Rate %u", cmn_param->frame_rate);
     GST_DEBUG ("Raw %d", ip_param->raw);
     GST_DEBUG ("Enable ROI: %d", ip_param->enable_roi);
     GST_DEBUG ("Relative QP: %d", ip_param->relative_qp);
@@ -343,16 +359,19 @@ vgst_print_params (guint index) {
     if (op_param->file_out)
       GST_DEBUG ("Record file path %s",   op_param->file_out);
     if (op_param->host_ip)
-      GST_DEBUG ("Host ip address %s",   op_param->host_ip);
+        GST_DEBUG ("Host ip %s",   op_param->host_ip);
+    GST_DEBUG ("port num %u",   op_param->port_num);
     GST_DEBUG ("Output sink type %d",  cmn_param->sink_type);
+    GST_DEBUG ("Enable_audio %d",  aud_param->enable_audio);
+    if(aud_param->enable_audio) {
     if (aud_param->format)
       GST_DEBUG ("Format type %s",  aud_param->format);
-    GST_DEBUG ("Enable_audio %d",  aud_param->enable_audio);
     GST_DEBUG ("Sampling_rate %d",  aud_param->sampling_rate);
     GST_DEBUG ("Channel %d",  aud_param->channel);
     GST_DEBUG ("Volume %f",  aud_param->volume);
     GST_DEBUG ("Audio source type %d",  aud_param->audio_in);
     GST_DEBUG ("Audio renderer type %d",  aud_param->audio_out);
+    }
 }
 
 
@@ -362,7 +381,7 @@ bus_callback (GstBus *bus, GstMessage *msg, gpointer ptr) {
     switch (GST_MESSAGE_TYPE (msg)) {
     case GST_MESSAGE_EOS:
       GST_DEBUG ("End of stream");
-      if (!play_ptr->stop_flag && FILE_SRC == app.ip_params->src_type) {
+      if (!play_ptr->stop_flag && FILE_SRC == app[play_ptr->channel].ip_params->src_type) {
         if (gst_element_seek_simple (play_ptr->pipeline, GST_FORMAT_TIME, GST_SEEK_FLAG_FLUSH | GST_SEEK_FLAG_ACCURATE, 0)) {
           GST_DEBUG ("seeking to %d succeeded", 0);
         } else {
@@ -371,7 +390,7 @@ bus_callback (GstBus *bus, GstMessage *msg, gpointer ptr) {
         break;
       }
       play_ptr->eos_flag = TRUE;
-      if (play_ptr->loop && g_main_is_running (play_ptr->loop)) {
+      if (play_ptr->loop && g_main_loop_is_running (play_ptr->loop)) {
         GST_DEBUG ("Quitting the loop");
         g_main_loop_quit (play_ptr->loop);
         g_main_loop_unref (play_ptr->loop);
@@ -389,7 +408,7 @@ bus_callback (GstBus *bus, GstMessage *msg, gpointer ptr) {
       // playback can't continue in error condition
       play_ptr->err_flag = TRUE;
       g_error_free (error);
-      if (play_ptr->loop && g_main_is_running (play_ptr->loop)) {
+      if (play_ptr->loop && g_main_loop_is_running (play_ptr->loop)) {
         GST_DEBUG ("Quitting the loop");
         g_main_loop_quit (play_ptr->loop);
         g_main_loop_unref (play_ptr->loop);
@@ -411,85 +430,135 @@ bus_callback (GstBus *bus, GstMessage *msg, gpointer ptr) {
     return TRUE;
 }
 
+static GstBusSyncReply
+bus_sync_handler (GstBus * bus, GstMessage * message, gpointer data)
+{
+  GstElement *pipeline = (GstElement *) data;
+
+  switch (GST_MESSAGE_TYPE (message)) {
+    case GST_MESSAGE_STATE_CHANGED:
+      /* we only care about pipeline state change messages */
+      if (GST_MESSAGE_SRC (message) == GST_OBJECT_CAST (pipeline)) {
+        GstState old, new, pending;
+        gchar *state_transition_name;
+
+        gst_message_parse_state_changed (message, &old, &new, &pending);
+
+        state_transition_name = g_strdup_printf ("%s_%s",
+            gst_element_state_get_name (old), gst_element_state_get_name (new));
+
+        /* dump graph for (some) pipeline state changes */
+        {
+          gchar *dump_name = g_strconcat ("vcu-gst-app.", state_transition_name, NULL);
+          GST_DEBUG_BIN_TO_DOT_FILE_WITH_TS (GST_BIN (pipeline),
+		  		GST_DEBUG_GRAPH_SHOW_STATES | GST_DEBUG_GRAPH_SHOW_NON_DEFAULT_PARAMS | GST_DEBUG_GRAPH_SHOW_FULL_PARAMS, dump_name);
+          g_free (dump_name);
+        }
+
+        /* place a marker into e.g. strace logs */
+        {
+          gchar *access_name = g_strconcat (g_get_tmp_dir (), G_DIR_SEPARATOR_S,
+              "gst-launch", G_DIR_SEPARATOR_S, state_transition_name, NULL);
+          g_file_test (access_name, G_FILE_TEST_EXISTS);
+          g_free (access_name);
+        }
+
+        g_free (state_transition_name);
+      }
+      break;
+    default:
+      break;
+  }
+  return GST_BUS_PASS;
+}
 
 VGST_ERROR_LOG
-vgst_create_pipeline () {
+vgst_create_pipeline (guint channel) {
     guint i =0;
     gint ret;
-    vgst_cmn_params *cmn_param = app.cmn_params;
-    vgst_ip_params *ip_param = app.ip_params;
-    vgst_enc_params *enc_param = app.enc_params;
-    vgst_playback *play_ptr = app.playback;
-    vgst_aud_params *aud_param = app.aud_params;
+	vgst_application* pApp = &app[channel];
+
+    vgst_cmn_params *cmn_param = pApp->cmn_params;
+    vgst_ip_params *ip_param = pApp->ip_params;
+    vgst_enc_params *enc_param = pApp->enc_params;
+    vgst_playback *play_ptr = pApp->playback;
+    vgst_aud_params *aud_param = pApp->aud_params;
 
     for (i =0; i < cmn_param->num_src; i++) {
-      if (SPLIT_SCREEN == cmn_param->sink_type) {
-        if (!(ret = create_split_pipeline (&ip_param[i], &enc_param[i], &play_ptr[i]))) {
-          GST_DEBUG ("Succeed to create pipeline !!!");
-        } else {
-          GST_ERROR ("failed to create pipeline !!!");
-          return ret;
-        }
+		pApp->playback[i].channel = channel;
 
-        // set all the property for split-screen
-        set_split_screen_property (&app, i);
+		if (SPLIT_SCREEN == cmn_param->sink_type) {
+			if (!(ret = create_split_pipeline (&ip_param[i], &enc_param[i], &play_ptr[i]))) {
+			  GST_DEBUG ("!!Succeed to create pipeline !");
+			} else {
+			  GST_ERROR ("failed to create pipeline !!!");
+			  return ret;
+			}
 
-        // linking all the elements for split screen
-        if ((ret = link_split_screen_elements (&ip_param[i], &play_ptr[i]))) {
-          GST_ERROR ("Failed to link elements !!!");
-          return ret;
-        }
-      } else {
-        if (!(ret = create_pipeline (&ip_param[i], &enc_param[i], &play_ptr[i], cmn_param->sink_type, app.op_params->file_out, &aud_param[i]))) {
-          GST_DEBUG ("Succeed to create pipeline !!!");
-        } else {
-          GST_ERROR ("failed to create pipeline !!!");
-          return ret;
-       }
+			// set all the property for split-screen
+			set_split_screen_property (pApp, i);
 
-        // set all the property
-        set_property (&app, i);
+			// linking all the elements for split screen
+			if ((ret = link_split_screen_elements (&ip_param[i], &play_ptr[i]))) {
+			  GST_ERROR ("Failed to link elements !!!");
+			  return ret;
+			}
+		} else {
+			if (!(ret = create_pipeline (&ip_param[i], &enc_param[i], &play_ptr[i], cmn_param->sink_type, pApp->op_params->file_out, &aud_param[i]))) {
+			  GST_DEBUG ("Succeed to create pipeline !!!");
+			} else {
+			  GST_ERROR ("failed to create pipeline !!!");
+			  return ret;
+			}
 
-        // linking all the elements
-        if ((ret = link_elements (&ip_param[i], &play_ptr[i], cmn_param->sink_type, &aud_param[i], app.op_params->file_out, &enc_param[i]))) {
-          GST_ERROR ("Failed to link elements !!!");
-          return ret;
-        }
+			// set all the property
+			set_property (pApp, i);
+
+			// linking all the elements
+			if ((ret = link_elements (&ip_param[i], &play_ptr[i], cmn_param->sink_type, &aud_param[i], pApp->op_params->file_out, &enc_param[i]))) {
+			  GST_ERROR ("Failed to link elements !!!");
+			  return ret;
+			}
       }
+      GstBus *bus = gst_element_get_bus (play_ptr[i].pipeline);
+      gst_bus_set_sync_handler (bus, bus_sync_handler, (gpointer) play_ptr[i].pipeline, NULL);
+      gst_object_unref (bus);
     }
     return VGST_SUCCESS;
 }
 
 void
-get_fps (guint index, guint *fps) {
+get_fps (guint index, guint *fps, guint channel) {
     gint i =0;
+    vgst_application* pVgst_App = &app[channel];
     if (!fps) {
       GST_ERROR ("Fps pointer is NULL");
       return;
     } else {
-      fps[i] = app.playback[index].fps_num[i];
+      fps[i] = pVgst_App->playback[index].fps_num[i];
       i++;
-      if (SPLIT_SCREEN == app.cmn_params->sink_type) {
+      if (SPLIT_SCREEN == pVgst_App->cmn_params->sink_type) {
         // In case of split screen, 0th index(Left) is processed and 1st index(Right) is Raw
-        fps[i] = app.playback[index].fps_num[i];
+        fps[i] = pVgst_App->playback[index].fps_num[i];
       }
     }
 }
 
 VGST_ERROR_LOG
-vgst_run_pipeline () {
+vgst_run_pipeline (guint channel) {
     guint i =0;
     guint x =0, y = 0, tmp =0;
-    guint num_src = app.cmn_params->num_src;
+    vgst_application* pVgst_App = &app[channel];
+    guint num_src = pVgst_App->cmn_params->num_src;
     GstBus *bus;
     gint ret = VGST_SUCCESS;
-    vgst_ip_params *ip_param = app.ip_params;
-    vgst_playback *play_ptr = app.playback;
-    vgst_cmn_params *cmn_param = app.cmn_params;
+    vgst_ip_params *ip_param = pVgst_App->ip_params;
+    vgst_playback *play_ptr = pVgst_App->playback;
+    vgst_cmn_params *cmn_param = pVgst_App->cmn_params;
 
     for (i =0; i< num_src; i++) {
-      bus = gst_pipeline_get_bus (GST_PIPELINE (app.playback[i].pipeline));
-      gst_bus_add_watch (bus, bus_callback, &app.playback[i]);
+      bus = gst_pipeline_get_bus (GST_PIPELINE (pVgst_App->playback[i].pipeline));
+      gst_bus_add_watch (bus, bus_callback, &pVgst_App->playback[i]);
       gst_object_unref (bus);
     }
     for (i =0; i< num_src; i++) {
@@ -542,29 +611,32 @@ vgst_run_pipeline () {
 }
 
 guint
-get_bitrate (int index) {
-    if ((FILE_SRC == app.ip_params[index].src_type || STREAMING_SRC == app.ip_params[index].src_type) && app.playback[index].file_br) {
-      return app.playback[index].file_br;
+get_bitrate (int index, guint channel) {
+	vgst_application* pVgst_App = &app[channel];
+    if ((FILE_SRC == pVgst_App->ip_params[index].src_type || STREAMING_SRC == pVgst_App->ip_params[index].src_type) && pVgst_App->playback[index].file_br) {
+      return pVgst_App->playback[index].file_br;
     } else
       return 0;
 }
 
 guint
-get_video_type (int index) {
-    return app.playback[index].video_type;
+get_video_type (int index, guint channel) {
+	vgst_application* pVgst_App = &app[channel];
+    return pVgst_App->playback[index].video_type;
 }
 
 gint
-poll_event (int *arg, int index) {
-    guint i, num_src = app.cmn_params->num_src;
+poll_event (int *arg, int index, guint channel) {
+	vgst_application* pVgst_App = &app[channel];
+    guint i, num_src = pVgst_App->cmn_params->num_src;
     gboolean eos_flag = TRUE;
     for (i =0; i< num_src; i++) {
-      eos_flag &= app.playback[i].eos_flag;
+      eos_flag &= pVgst_App->playback[i].eos_flag;
     }
     if (eos_flag) {
       return EVENT_EOS;
     }
-    if (app.playback[index].err_msg) {
+    if (pVgst_App->playback[index].err_msg) {
       *arg = VGST_ERROR_RUN_TIME_PIPELINE_FAILED;
       return EVENT_ERROR;
     }
@@ -572,21 +644,22 @@ poll_event (int *arg, int index) {
 }
 
 void
-get_position (guint index, gint64 *position) {
+get_position (guint index, gint64 *position, guint channel) {
     GstFormat format = GST_FORMAT_TIME;
-    if (!app.playback[index].pipeline || !app.cmn_params) {
+    vgst_application* pVgst_App = &app[channel];
+    if (!pVgst_App->playback[index].pipeline || !pVgst_App->cmn_params) {
       GST_ERROR ("Pipeline not initialized");
       return;
     }
 
-    if (!gst_element_query_position (app.playback[index].pipeline, format, position)) {
+    if (!gst_element_query_position (pVgst_App->playback[index].pipeline, format, position)) {
       GST_ERROR ("Unable to retrieve current position");
     }
-    if ((app.cmn_params->sink_type  == RECORD) && *position >= app.op_params[index].duration * GST_MINUTE * GST_SECOND) {
+    if ((pVgst_App->cmn_params->sink_type  == RECORD) && *position >= pVgst_App->op_params[index].duration * GST_MINUTE * GST_SECOND) {
       GST_DEBUG ("Sending EOS event");
       GstEvent *event = gst_event_new_eos();
       if (event) {
-        if (gst_element_send_event (app.playback[index].pipeline, event)) {
+        if (gst_element_send_event (pVgst_App->playback[index].pipeline, event)) {
           GST_DEBUG ("send EOS event to pipeline Succeed");
         } else
           GST_ERROR("send EOS event to pipeline failed");
@@ -595,27 +668,31 @@ get_position (guint index, gint64 *position) {
 }
 
 void
-get_duration (guint index, gint64 *duration) {
+get_duration (guint index, gint64 *duration, guint channel) {
     GstFormat format = GST_FORMAT_TIME;
-    if (!app.playback[index].pipeline) {
+    vgst_application* pVgst_App = &app[channel];
+    if (!pVgst_App->playback[index].pipeline) {
       GST_ERROR ("Pipeline not initialized");
       return;
     }
-    if (!gst_element_query_duration (app.playback[index].pipeline, format, duration)) {
+    if (!gst_element_query_duration (pVgst_App->playback[index].pipeline, format, duration)) {
       GST_ERROR ("Unable to retrieve current duration");
     }
 }
 
 gint
-stop_pipeline (void) {
-    if (!app.cmn_params) {
+stop_pipeline (guint channel) {
+	vgst_application* pVgst_App = &app[channel];
+
+    if (!pVgst_App->cmn_params) {
       GST_ERROR ("Pipeline not initialized");
+      g_print("%d, !pVgst_App->cmn_params", __LINE__);//TODO: Odelya delete
       return VGST_ERROR_PIPELINE_NOT_INITIALIZED;
     }
-    guint num_src = app.cmn_params->num_src;
+    guint num_src = pVgst_App->cmn_params->num_src;
     gint i =0, ret = VGST_SUCCESS;
     for (i = (num_src - 1); i >= 0; i--) {
-      vgst_playback *play_ptr = &app.playback[i];
+      vgst_playback *play_ptr = &pVgst_App->playback[i];
       if (!play_ptr || !play_ptr->pipeline) {
         GST_ERROR ("Pipeline handle is null");
         ret |= VGST_ERROR_PIPELINE_NOT_INITIALIZED;
@@ -623,7 +700,7 @@ stop_pipeline (void) {
       }
       play_ptr->stop_flag = TRUE;
       if (!play_ptr->eos_flag && !play_ptr->err_flag) {
-        if (app.cmn_params->sink_type == RECORD) {
+        if (pVgst_App->cmn_params->sink_type == RECORD) {
           GST_DEBUG ("sending EOS event");
           GstEvent *event = gst_event_new_eos();
           if (event) {

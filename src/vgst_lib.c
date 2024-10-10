@@ -25,8 +25,8 @@ GST_DEBUG_CATEGORY (vgst_lib);
 #define GST_CAT_DEFAULT vgst_lib
 
 const gchar *
-vgst_error_to_string (VGST_ERROR_LOG error_code, gint index) {
-    return error_to_string (error_code, index);
+vgst_error_to_string (VGST_ERROR_LOG error_code, gint index, guint channel) {
+    return error_to_string (error_code, index, channel);
 }
 
 gint
@@ -70,7 +70,7 @@ check_limitation (vgst_ip_params *ip_param, vgst_enc_params *enc_param, vgst_cmn
 
 gint
 vgst_config_options (vgst_enc_params *enc_param, vgst_ip_params *ip_param, vgst_op_params *op_param,
-                     vgst_cmn_params *cmn_param, vgst_aud_params *aud_param) {
+                     vgst_cmn_params *cmn_param, vgst_aud_params *aud_param, guint channel) {
     struct stat file_stat;
     struct vlib_config_data config;
     guint i,num_src = cmn_param->num_src;
@@ -151,13 +151,13 @@ vgst_config_options (vgst_enc_params *enc_param, vgst_ip_params *ip_param, vgst_
         GST_ERROR ("Resolution WxH not supported");
         return VGST_ERROR_RESOLUTION_NOT_SUPPORTED;
       }
-      if (LIVE_SRC == ip_param[i].src_type && ip_param[i].device_type == TPG_1 \
+      if (LIVE_SRC == ip_param[i].src_type && (ip_param[i].device_type == TPG_1 || ip_param[i].device_type == TPG_2) \
           && (ip_param[i].width != MAX_WIDTH || ip_param[i].height != (guint)MAX_HEIGHT) \
           && (cmn_param->frame_rate != MAX_SUPPORTED_FRAME_RATE)) {
         GST_ERROR ("TPG 1080P30 resolution not supported");
         return VGST_ERROR_TPG_IN_1080P30_NOT_SUPPORTED;
       }
-      if (LIVE_SRC == ip_param[i].src_type && (ip_param[i].device_type != TPG_1 && ip_param[i].device_type != HDMI_1 \
+      if (LIVE_SRC == ip_param[i].src_type && (ip_param[i].device_type != TPG_1 && ip_param[i].device_type != TPG_2 && ip_param[i].device_type != HDMI_1 \
           && ip_param[i].device_type != CSI && ip_param[i].device_type != SDI && ip_param[i].device_type != HDMI_2 \
           && ip_param[i].device_type != HDMI_3 && ip_param[i].device_type != HDMI_4 && ip_param[i].device_type != HDMI_5 \
           && ip_param[i].device_type != HDMI_6 && ip_param[i].device_type != HDMI_7 && ip_param[i].device_type != CSI_2 \
@@ -314,6 +314,7 @@ vgst_config_options (vgst_enc_params *enc_param, vgst_ip_params *ip_param, vgst_
       }
 
       ip_param[i].scd_type = config.scd_type;
+
       if (aud_param[i].enable_audio) {
         aud_param[i].source_id = vlib_audio_find_device_id(SND_PCM_STREAM_CAPTURE, aud_param[i].audio_in);
         if (aud_param[i].source_id == NULL) {
@@ -344,24 +345,24 @@ vgst_config_options (vgst_enc_params *enc_param, vgst_ip_params *ip_param, vgst_
       }
     }
 
-    init_struct_params (enc_param, ip_param, op_param, cmn_param, aud_param);
+    init_struct_params (enc_param, ip_param, op_param, cmn_param, aud_param, channel);
     for (i =0; i< num_src; i++) {
-      vgst_print_params (i);
+      vgst_print_params (i, channel);
     }
     return VGST_SUCCESS;
 }
 
 gint
-vgst_start_pipeline (void) {
+vgst_start_pipeline (guint channel) {
     VGST_ERROR_LOG ret;
     // create a pipeline
-    if ((ret = vgst_create_pipeline ())) {
+    if ((ret = vgst_create_pipeline (channel))) {
       GST_ERROR ("pipeline creation failed !!!");
       return ret;
     }
 
     // run the pipeline
-    if ((ret = vgst_run_pipeline ())) {
+    if ((ret = vgst_run_pipeline (channel))) {
       GST_ERROR ("pipeline start failed !!!");
       return ret;
     }
@@ -369,40 +370,40 @@ vgst_start_pipeline (void) {
 }
 
 void
-vgst_get_fps (guint index, guint *fps) {
-    get_fps (index, fps);
+vgst_get_fps (guint index, guint *fps, guint channel) {
+    get_fps (index, fps, channel);
 }
 
 void
-vgst_get_position (guint index, gint64 *pos) {
-    get_position (index, pos);
+vgst_get_position (guint index, gint64 *pos, guint channel) {
+    get_position (index, pos, channel);
 }
 
 void
-vgst_get_duration (guint index, gint64 *duration) {
-    get_duration (index, duration);
+vgst_get_duration (guint index, gint64 *duration, guint channel) {
+    get_duration (index, duration, channel);
 }
 
 guint
-vgst_get_bitrate (int index) {
-    return get_bitrate (index);
+vgst_get_bitrate (int index, guint channel) {
+    return get_bitrate (index, channel);
 }
 
 guint
-vgst_get_video_type (int index) {
-    return get_video_type (index);
+vgst_get_video_type (int index, guint channel) {
+    return get_video_type (index, channel);
 }
 
 gint
-vgst_stop_pipeline () {
+vgst_stop_pipeline (guint channel) {
     /* pipeline clean up */
     GST_DEBUG ("cleaning up the pipeline");
-    return stop_pipeline ();
+    return stop_pipeline (channel);
 }
 
 gint
-vgst_poll_event (int *arg, int index) {
-    return poll_event (arg, index);
+vgst_poll_event (int *arg, int index, guint channel) {
+    return poll_event (arg, index, channel);
 }
 
 gint vgst_init(void) {

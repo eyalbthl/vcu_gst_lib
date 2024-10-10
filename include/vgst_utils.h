@@ -39,6 +39,7 @@ extern "C"
 
 typedef struct
 _vgst_playback {
+	guint 			 channel;
     GstElement       *pipeline, *ip_src, *rtppay, *demux, *mux, *tee;
     GstElement       *queue, *enc_queue, *audqueue;
     GstElement       *audcapsfilter, *audcapsfilter2, *srccapsfilter, *enccapsfilter, *deccapsfilter;
@@ -60,6 +61,7 @@ _vgst_playback {
 
 typedef struct
 _vgst_application {
+	guint 			   channel;
     vgst_playback      playback[MAX_SRC_NUM];
     vgst_enc_params    *enc_params;
     vgst_ip_params     *ip_params;
@@ -69,50 +71,50 @@ _vgst_application {
 } vgst_application;
 
 /* This API is interface for creating single/mult-stream pipeline */
-VGST_ERROR_LOG vgst_create_pipeline ();
+VGST_ERROR_LOG vgst_create_pipeline (guint channel);
 
 /* This API is to print all the parameters coming from application */
-void vgst_print_params (guint index);
+void vgst_print_params (guint index, guint channel);
 
 /* This API is to capture messages from pipeline */
 gboolean bus_callback (GstBus *bus, GstMessage *msg, gpointer data);
 
 /* This API is to initialize pipeline structure */
-void init_struct_params (vgst_enc_params *enc_param, vgst_ip_params *ip_param, vgst_op_params *op_param, vgst_cmn_params *cmn_param, vgst_aud_params *aud_param);
+void init_struct_params (vgst_enc_params *enc_param, vgst_ip_params *ip_param, vgst_op_params *op_param, vgst_cmn_params *cmn_param, vgst_aud_params *aud_param, guint channel);
 
 /* This API is called when element is added to bin/sub_bin */
 void on_deep_element_added (GstBin *bin, GstBin *sub_bin,
-                            GstElement *element, gpointer user_data);
+                            GstElement *element, gpointer user_data, guint channel);
 
 /* This API is required for linking src pad of decoder to sink element */
-void on_pad_added (GstElement *element, GstPad *pad, gpointer data);
+void on_pad_added (GstElement *element, GstPad *pad, gpointer data, guint channel);
 
 /* This API is to stop the single/multi-stream pipeline */
-gint stop_pipeline (void);
+gint stop_pipeline (guint channel);
 
 /* This API is to run the single/multi-stream pipeline */
-VGST_ERROR_LOG vgst_run_pipeline ();
+VGST_ERROR_LOG vgst_run_pipeline (guint channel);
 
 /* This API is to convert error number to string */
-const gchar * error_to_string (VGST_ERROR_LOG error_code, gint index);
+const gchar * error_to_string (VGST_ERROR_LOG error_code, gint index, guint channel);
 
 /* This API is to get bitrate for file/stream-in playback */
-guint get_bitrate (int index);
+guint get_bitrate (int index, guint channel);
 
 /* This API is to get video type for file/stream-in playback */
-guint get_video_type (int index);
+guint get_video_type (int index, guint channel);
 
 /* This API is to poll events */
-gint poll_event (int *arg, int index);
+gint poll_event (int *arg, int index, guint channel);
 
 /* This API is to get fps of the pipeline */
-void get_fps (guint index, guint *fps);
+void get_fps (guint index, guint *fps, guint channel);
 
 /* This API is to get current position of the pipeline */
-void get_position (guint index, gint64 *position);
+void get_position (guint index, gint64 *position, guint channel);
 
 /* This API is to get duration of the file */
-void get_duration (guint index, gint64 *duration);
+void get_duration (guint index, gint64 *duration, guint channel);
 
 #ifdef __cplusplus
 }

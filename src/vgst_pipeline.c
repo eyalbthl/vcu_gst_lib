@@ -143,7 +143,12 @@ create_pipeline (vgst_ip_params *ip_param, vgst_enc_params *enc_param, vgst_play
       GST_DEBUG ("All common elements are created");
     }
 
-    gst_bin_add_many (GST_BIN(play_ptr->pipeline), play_ptr->ip_src, play_ptr->srccapsfilter, play_ptr->queue, play_ptr->enc_queue,
+    if((ip_param->src_type == LIVE_SRC) && (sink_type == STREAM)) {
+    	gst_bin_add_many (GST_BIN(play_ptr->pipeline), play_ptr->ip_src, play_ptr->srccapsfilter, play_ptr->enc_queue,
+                      play_ptr->enccapsfilter, NULL);
+    }
+	else
+    	gst_bin_add_many (GST_BIN(play_ptr->pipeline), play_ptr->ip_src, play_ptr->srccapsfilter, play_ptr->queue, play_ptr->enc_queue,
                       play_ptr->enccapsfilter, play_ptr->deccapsfilter, NULL);
 
     if ((sink_type == STREAM) && ((llp2_design && ip_param->enable_llp2) || SUB_FRAME_LATENCY == enc_param->latency_mode)) {
@@ -201,7 +206,11 @@ create_pipeline (vgst_ip_params *ip_param, vgst_enc_params *enc_param, vgst_play
         GST_ERROR ("FAILED to create streaming elements");
         return VGST_ERROR_PIPELINE_CREATE_FAIL;
       }
-      gst_bin_add_many(GST_BIN(play_ptr->pipeline), play_ptr->videoenc, play_ptr->videodec, play_ptr->videoparser, play_ptr->rtppay, play_ptr->mux, NULL);
+      if (LIVE_SRC == ip_param->src_type && sink_type == STREAM) {
+    	  gst_bin_add_many(GST_BIN(play_ptr->pipeline), play_ptr->videoenc, play_ptr->videoparser, play_ptr->rtppay, play_ptr->mux, NULL);
+      }
+      else
+    	  gst_bin_add_many(GST_BIN(play_ptr->pipeline), play_ptr->videoenc, play_ptr->videodec, play_ptr->videoparser, play_ptr->rtppay, play_ptr->mux, NULL);
     }
     return VGST_SUCCESS;
 }
@@ -361,7 +370,7 @@ set_property (vgst_application *app, gint index) {
         gst_caps_unref (encCaps);
 
         if (vlib_is_llp2_design() && ip_param->enable_llp2) {
-          decCaps  = gst_caps_new_simple ("video/x-raw", NULL);
+          decCaps  = gst_caps_new_simple ("video/x-raw", NULL, (char*)NULL);
           gst_caps_set_features(decCaps, 0, gst_caps_features_new (GST_CAPS_FEATURE_MEMORY_XLNX_LL, NULL));
           GST_DEBUG ("new Caps for dec capsfilter %" GST_PTR_FORMAT, decCaps);
           g_object_set (G_OBJECT (play_ptr->deccapsfilter),  "caps",  decCaps, NULL);
